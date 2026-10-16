@@ -1,4 +1,4 @@
-"""Read-only inventory and plan validation for the EasyArch GUI prototype.
+"""Read-only inventory and plan validation for the EasyArch TUI prototype.
 
 This module does not partition, format, mount or install anything.
 """
@@ -77,12 +77,17 @@ def enumerate_disks(lsblk_data: dict | None = None) -> list[dict]:
     return disks
 
 
+def installed_memory() -> str:
+    lines = command("free", "-h").splitlines()
+    return lines[1].split()[1] if len(lines) > 1 and len(lines[1].split()) > 1 else "Unknown"
+
+
 def preflight() -> dict:
     return {
         "firmware": "UEFI" if Path("/sys/firmware/efi").exists() else "Legacy BIOS or unavailable",
         "internet_default_route": bool(command("ip", "route", "show", "default")),
         "cpu_arch": command("uname", "-m") or "Unknown",
-        "memory": command("free", "-h") .splitlines()[1].split()[1] if len(command("free", "-h").splitlines()) > 1 else "Unknown",
+        "memory": installed_memory(),
         "current_desktop": os.environ.get("XDG_CURRENT_DESKTOP", "Unknown"),
     }
 

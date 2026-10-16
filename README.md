@@ -1,48 +1,93 @@
-# EasyArch Installer — GUI prototype v0.1
+# EasyArch TUI — v0.2.0
 
-**A working GTK4 multi-step GUI; NOT a real operating system installer.**
+**A keyboard-driven installer wizard prototype for Arch Linux terminals and the official ArchISO.**
 
-This demo offers a welcoming wizard, checks local system properties, displays disks via `lsblk`, lets you select an *eligible* disk in preview mode, chooses KDE/GNOME/XFCE/Minimal, validates username/hostname/timezone, previews the plan, and exports it as JSON. **It never formats, mounts, partitions, writes bootloaders, installs packages, or asks for passwords.** The exported plan is *not* a valid `archinstall` configuration.
+> **Important:** This is an **interactive preview, not a working OS installer**. It **does not** partition, erase, mount, format, pacstrap, create users, or install bootloaders. It generates a **preview JSON plan only**, which is **not** an `archinstall` config. Do not advertise it as capable of installing Arch.
 
-## Launch on an existing Arch Linux desktop
+## Features
+
+- Full-screen, keyboard-controlled TUI built with Python's standard-library `curses` (no GTK, Qt, or graphical environment)
+- Simple workflow: Welcome -> Checks -> Disk -> Desktop -> Account -> Review
+- Read-only UEFI/BIOS, architecture, RAM, and route checks
+- Disk inventory via `lsblk`; disks with reported mounts, removable/read-only disks, and disks smaller than 20 GiB cannot be selected
+- KDE Plasma, GNOME, XFCE, or Minimal desktop choices
+- Validated hostname, username and time zone; no passwords collected
+- Exports private JSON preview plans to `~/.local/share/easyarch/plans/`
+- `--demo` simulates disks and blocks plan export for safe interface exploration
+- Rescan key, interactive field editing, help overlay, and adaptive narrow-terminal notice
+- **Never makes system modifications**
+
+## Run
+
+On the official Arch ISO (normally already includes Python) or a normal Arch Linux terminal:
 
 ```bash
-sudo pacman -S --needed python python-gobject gtk4
+# If Python is missing, install it first (network connection required):
+# pacman -S --needed python
+
 ./start.sh
+# Or preview on virtual sample disks without exporting a plan:
+./start.sh --demo
 ```
 
-On other distributions, install Python 3, GTK4 and PyGObject using that distribution's package manager. Run it as your **normal desktop user**, **not root**.
+Works in a text console or terminal emulator. **Run it as your current user**; root is neither needed nor used for disk writes, although the ArchISO shell normally starts as root. Minimum usable terminal size: 68 columns x 24 rows; 90x30 recommended. If your terminal is too small, enlarge it.
 
-The script needs an existing desktop session; it will **not** launch a graphical desktop from the standard text-only Arch Linux ISO. That requires building a custom ArchISO with a graphical environment and appropriate packages.
+### Controls
 
-## Safety controls
+| Key | Function |
+| --- | --- |
+| `Up` / `Down`, `j` / `k` | Highlight disk, desktop or form field |
+| `Enter` | Select and proceed on disk/desktop pages; edit on account page; export on review |
+| `Space` | Select disk or desktop without advancing |
+| `N` / `Right` | Next step |
+| `B` / `Left` / `Esc` | Previous step |
+| `R` | Refresh hardware and disk info on checks/disk screens |
+| `Tab` | Next field/item |
+| `H` / `?` | Help |
+| `Q` | Quit |
 
-- Runs unprivileged. There are **no install, mkfs, wipefs, mount, pacstrap, or bootloader commands** in the project.
-- Mounted/in-use, read-only, removable and sub-20 GiB disks cannot be selected.
-- On a machine whose only internal disk is mounted, you can still explore every wizard page, but you cannot export a validated plan without an eligible disk.
-- Doesn't request or store passwords. Plans contain disk path and chosen nonsecret options.
-- The preview plan is written with owner-only permissions under `~/.local/share/easyarch/plans/`.
+Text editing: `Enter` saves the field, `Esc` cancels, `Backspace` removes a character.
 
-## Test logic without GTK
+### Project files
+
+```text
+easyarch-installer/
+├── README.md
+├── LICENSE
+├── .gitignore
+├── start.sh
+├── tui.py
+├── core.py
+└── tests/
+    ├── test_core.py
+    └── test_tui.py
+```
+
+### Tests
 
 ```bash
 python3 -m unittest discover -s tests -v
+python3 -m py_compile tui.py core.py
+bash -n start.sh
 ```
 
-## Proposed milestones toward a real installer
+### Safety notes
 
-1. **Preview (this release):** safe UI and detection.
-2. **VM-only backend:** integrate with a pinned/tested `archinstall` release or Calamares; create correct config schema for that release, validate plan in a disposable VM only.
-3. **Custom ArchISO:** Archiso + Wayland compositor + GTK4 runtime + network manager + preinstalled backend; launcher starts automatically.
-4. **Real install workflow:** graphical Wi-Fi connection, encryption, partition editor, desktop profiles, firmware/driver selection, strong double-confirmation for destructive actions, progress view, error recovery, bootability testing.
-5. **Release quality:** automated QEMU UEFI and BIOS integration tests, NVMe/SATA/USB and multi-disk tests, full-disk encryption tests, Secure Boot handling, dual-boot protectors and accessibility testing.
+- **No disk writes** whatsoever in this release. The stored disk path refers to a **future hypothetical erase-disk flow**, NOT an authorized installation.
+- Mounted/removable/read-only filtering is only a **basic preview guard**. It is NOT sufficient for production partitioning (e.g. encrypted/LVM/multipath, loop mounts, stale filesystem signatures, existing OS installations). A future destructive backend needs additional explicit detection, two-step confirmation and VM testing.
+- This prototype makes no assumptions about firmware/driver choice; it doesn't yet install the selected desktop.
+- Never enter passwords into plan fields; exported plans contain hostname, username, time zone and target disk path.
+- A default route does not verify functional internet access.
+- The terminal wizard does **not** change Arch's installation process or make a bootable installer USB by itself.
 
-## Current limitations
+## Next milestone
 
-- BIOS/UEFI and network tests are informative only. A default network route is not proof of internet access.
-- Disk selection and profile options do not yet produce a complete actionable install configuration.
-- Disk-in-use detection uses lsblk reported mounts (not exhaustive for complex LVM/RAID setups). This matters when implementing a real destructive backend.
-- No live ISO or installation backend is included.
-- The UI has been statically checked and backend unit-tested, but needs a GUI smoke-test in a real GTK4 desktop.
+1. Add profile selection and secure password entry in-memory only (never in plans/logs).
+2. Develop a separate VM-only installation engine using a tested, pinned release of `archinstall` or a rigorously reviewed native backend.
+3. Add robust block-device safety checks, backup/disk-wipe confirmation, ESP/bootloader configurations, file system choices and optional encryption.
+4. Test in disposable QEMU/UEFI VMs with failure injection and recovery, then package for ArchISO.
+5. Only after exhaustive tests, expose real installation functionality with careful warnings.
 
-Built for experimentation. **Do not present v0.1 as an installer capable of installing Arch Linux.**
+## Contribution
+
+Pull requests and bug reports welcome. This project is MIT licensed. The code intentionally separates the terminal UI (`tui.py`) from read-only inventory/validation (`core.py`).
